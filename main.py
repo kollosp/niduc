@@ -178,7 +178,7 @@ if __name__ == "__main__":
 	
 	#params
 	#############
-	frameLen = 10 #bytes
+	frameLen = 2 #bytes
 	swapProb = 0.001
 	testCount = 10000
 

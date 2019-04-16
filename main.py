@@ -1,68 +1,13 @@
 import numpy as np
+import helpers
+import receiver
+import socket 
+import algorythms
+import streamGen
+import streamPipe as streamPipe
 from sys import stdout
 
-class StreamGenerator:
-	def __init__(self, length):
-		self.len = length # how many bytes will be generated
 
-	# generate new byte array
-	def genRandom(self):
-		#generate random bytes (string)	
-		string = np.random.bytes(self.len)
-		
-		#rewrite string into byte array
-		array = []
-		for i in range(len(string)):
-			array.append(ord(string[i]))
-		return array
-		
-class StreamPipe:
-	def __init__(self, prob):
-		self.prob = prob
-
-	def transfer(self, array):
-		ret = []
-		
-		#for all bytes
-		for i in array:
-			#for all bits
-			mask = 1
-			value = 0
-			for j in range(8):
-				if np.random.rand() <= self.prob:
-	 
-					#swap bit value
-					if (i & mask) == 0:
-						value += mask 
-				else:
-					value += (i & mask)
-				#mask shift
-				mask *= 2
-
-			#append to returned array
-			ret.append(value)
-		
-		return ret
-	
-#display byte array in hex format 0xXX
-def displayByteArray(array):
-	for x in array:
-		stdout.write("0x%02X " % x)
-	print '\n'
-
-#how many bits have been changed
-def arrayDiff(a1, a2):
-	if len(a1) != len(a2): 
-		print "a1 and a2 must be the same length"	
-	
-	diff = 0
-	for i in range(len(a1)):
-		mask = 1
-		for j in range(8):
-			if (a1[i] & mask) != (a2[i] & mask):
-				diff+=1
-			mask*=2
-	return diff
 
 
 
@@ -95,20 +40,6 @@ def arrayDiff(a1, a2):
 #
 #################################
 
-def codeParity(array):
-	paritySum = 0
-
-	#for all bytes
-	for i in range(len(array)):
-		#for all bits
-		mask = 1
-		for j in range(8):
-			if (array[i] & mask) > 0:
-				paritySum+=1
-			
-			mask *= 2
-
-	return paritySum % 2 # 1 if odd
 
 # return quality send-received/send
 # stream - determinates how many bites can be transmited in time unit 
@@ -124,8 +55,8 @@ def testsParity(frameLen, swapProb, testCount):
 
 
 	for i in range(testCount):
-		generator = StreamGenerator(frameLen)
-		pipe = StreamPipe(swapProb)
+		generator = streamGen.StreamGenerator(frameLen)
+		pipe = streamPipe.StreamPipe(swapProb)
 		sendBytes = generator.genRandom() 
 		sendBytes.append(codeParity(sendBytes) + ((2*i+1) & 0xFE))
 
@@ -143,7 +74,7 @@ def testsParity(frameLen, swapProb, testCount):
 		sendBits += len(sendBytes) * 8
 		receivedBits += len(sendBytes)
 
-		diff =  arrayDiff(sendBytes, receivedBytes)
+		diff = helpers.arrayDiff(sendBytes, receivedBytes)
 		diffs+= diff
 
 		if diff != 0:
@@ -169,50 +100,137 @@ def testsParity(frameLen, swapProb, testCount):
 	print(' # carry-over ' + str(carryover) + ' bits (' + str(100*carryover/sendBits) + '%)')
 	print(' # incorrect bits: '+ str(diffs)+ ' (' + str(100*diffs/sendBits) + '%)')
 	print(' # incorrect frames: '+ str(mistakes) + ' (' + str(100*mistakes/testCount) + '%)')	
+
 	if mistakes != 0:	
 		print(' # detected as incorrect factor(detected/mistakes): '+ str(detectedMistakes) + ' (' + str(100*detectedMistakes/mistakes) + '%)')
+
 	print(' # detected as incorrect factor(detected/send): '+ str(detectedMistakes) + ' (' + str(100*detectedMistakes/testCount) + '%)')		
 
+def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunction): 
 
-if __name__ == "__main__":
+	############
+	# Statistics
+
+	index = 0 # how many frames has been send
+	dataIndex = 0 # how many frames of data (no repetes) has been send
+	errors = 0 # how many broken frames has been received 
+	missedErrors = 0 # how many bed frames has been marked as correct
+	fullyCorrectedMessages = 0
+
+	############
+
+	pipe = streamPipe.StreamPipe(swapProb)
+	s = socket.Socket(frameLen, framesCount)
+	frame = []
+	lastFrameStatus = 0
+	lastFrameCounter = 0
+
+	while True:
+		index+=1 
+
+		#generate frames
+		if lastFrameStatus == True:
+			frame = s.sendFrame(coderFunction)	
+			dataIndex+=1
+		else: 
+			# resending
+			frame = s.sendFrame(decoderFunction, lastFrameCounter)
+			# if frame is [0xFF] it means that lastFrameStatus has invalid value
+			if len(frame) == 1 and frame[0] == 0xFF:
+				lastFrameStatus = True
+				continue
+
+		#if there is no more frames
+		if len(frame) == 0:
+			break
+		
+		# transfer
+		mixedFrame = pipe.transfer(frame)
+		
+		# detect if frame has been correctly send
+		# if last frame status != 0 then ask for repeate
+		[lastFrameStatus, lastFrameCounter] = s.receiveFrame(mixedFrame, s.checkParity)
+
+		# check if detection algorythm do its job
+		# error detected
+		if helpers.arrayDiff(frame, mixedFrame):
+			errors+=1
+
+			# if error missed
+			if lastFrameStatus == True:
+				missedErrors+=1
+		else:
+			fullyCorrectedMessages+=1
+
+		stdout.write("\r%d: progress: %d/%d (%d %%) miss/err: %d/%d correctMsg: %d" % (index, dataIndex,
+		 framesCount, dataIndex*100/framesCount, missedErrors, errors, fullyCorrectedMessages))
+
+	print '\n'
+	print '---------------SUMMARY---------------'
+	print ' # target(frames with data):          ', framesCount, 'frames', framesCount *(frameLen), 'bytes (data)'
+	print ' # send:                              ', index, 'frames', index *(frameLen+carryover), 'bytes (data+carryover)'
+	print ' # repeted:                           ', index - framesCount, 'frames', (index - framesCount)*(frameLen+carryover), 'bytes'  
+	print ' #'
+	print ' # correct received message:          ', fullyCorrectedMessages, 'frames', fullyCorrectedMessages*frameLen, 'bytes'
+	print ' # lost messages (matched as correct):', framesCount - fullyCorrectedMessages,'frames', (framesCount - fullyCorrectedMessages)*frameLen, 'bytes' 
+	print ' #'
+	print ' # carryover:                         ', index, 'bytes.', (index - framesCount)*(frameLen+carryover), 'bytes of repeted frames' 
+	print ' #'
+	print ' # errors (frames):                   ', errors
+	print ' # missed errors (frames):            ', missedErrors
+	print ' # detected errors (frames):          ', errors - missedErrors
+
+
+	#for i in range(10):
+	#	helpers.displayByteArray(sender.sendFrame(sender.parityAdder))
+
+def parityTest():
+	#params
+	#############
+	frameLen = 1 #bytes
+	swapProb = 0.001
+	framesCount = 10000
+	carryover = 1
+	#############
 	
+	test(frameLen, swapProb, framesCount, carryover, socket.Socket.parityAdder, socket.Socket.checkParity)
+
+	return
+
+
+def crc16Test():
 	#params
 	#############
 	frameLen = 2 #bytes
 	swapProb = 0.001
-	testCount = 10000
-
+	framesCount = 10000
+	carryover = 3
 	#############
 
-	#run tests
-	testsParity(frameLen, swapProb, testCount)
+	test(frameLen, swapProb, framesCount, carryover, socket.Socket.crc16Adder, socket.Socket.checkCrc16)
 
-	'''
-	bitsSend = frameLen * 8 # calc bits count 
+	return
 
-	generator = StreamGenerator(frameLen)
-	pipe = StreamPipe(swapProb)
+if __name__ == "__main__":
+	#parityTest()
+	crc16Test()
 
-	sendBytes = generator.genRandom() 
+
+	#array = [0x11, 0x03, 0x0, 0x6B, 0x0, 0x3] #crc 0x7687
+	array = [0x11, 0x03, 0x06, 0xAE, 0x41, 0x56, 0x52, 0x43, 0x40] #crc 49AD 
+	helpers.displayByteArray(algorythms.crc16(array))
+	helpers.displayByteArray(array[0:-2])
+
+	s = socket.Socket(10, 10)
+
+	frame = s.sendFrame(s.crc16Adder)
+	frame = s.sendFrame(s.crc16Adder)
+	frame = s.sendFrame(s.crc16Adder)	
+	helpers.displayByteArray(frame)
+	#print algorythms.crc16(frame[0:-2])
+	#frame[0]+=1
+	helpers.displayByteArray(frame)
 	
+	#print algorythms.crc16(frame[0:-2])
 	
-	receivedBytes = pipe.transfer(sendBytes)
-	print('=============================')
-	print('send: ')
-	displayByteArray(sendBytes)
-	print('received: ')
-	displayByteArray(receivedBytes)
-	
-	diff =  arrayDiff(sendBytes, receivedBytes)
-
-	print('=============================')
-	print(' # generated ' + str(bitsSend) + ' bits')
-	print(' # bit change probability: ' + str(swapProb))
-	print(' # changed detected: '+ str(diff)+ ' (' + str(100*diff/bitsSend) + '%)')
-	'''
-
-
-#11011001 11011110 10101001
-#00000010
-
-#00000000
+	print s.receiveFrame(frame, s.checkCrc16)

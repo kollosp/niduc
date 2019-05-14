@@ -252,6 +252,7 @@ def main():
 
 	return 
 
+	'''
 	#array = [0x11, 0x03, 0x0, 0x6B, 0x0, 0x3] #crc 0x7687
 	array = [0x11, 0x03, 0x06, 0xAE, 0x41, 0x56, 0x52, 0x43, 0x40] #crc 49AD 
 	helpers.displayByteArray(algorythms.crc8(array))
@@ -270,6 +271,8 @@ def main():
 	#print algorythms.crc16(frame[0:-2])
 	
 	print s.receiveFrame(frame, s.checkCrc8)
+	'''
+
 
 if __name__ == "__main__":
 	main()

@@ -96,6 +96,13 @@ class Socket:
 		sendBytes.append(crc[1])
 		return sendBytes
 
+	@staticmethod
+	def crc8Adder(sendBytes, counter):
+		sendBytes.append(counter)
+		crc = algorythms.crc8(sendBytes)
+		sendBytes.append(crc[0])
+		return sendBytes
+
 
 	@staticmethod
 	def checkCrc16(receivedBytes):
@@ -104,12 +111,28 @@ class Socket:
 		crc[0] = receivedBytes[-2]
 		crc[1] = receivedBytes[-1]		
 
-		print crc
+		#print crc
 
 		crcCalc = algorythms.crc16(receivedBytes[0:-2])
 
-		print crcCalc
+		#print crcCalc
 
 		if crcCalc[0] == crc[0] and crcCalc[1] == crc[1]:
+			return [True, counter]
+		else: return [False, counter]
+
+	@staticmethod
+	def checkCrc8(receivedBytes):
+		crc = [0]
+		counter = receivedBytes[-2] 
+		crc[0] = receivedBytes[-1]		
+
+		#print crc
+
+		crcCalc = algorythms.crc8(receivedBytes[0:-1])
+
+		#print crcCalc
+
+		if crcCalc[0] == crc[0]:
 			return [True, counter]
 		else: return [False, counter]

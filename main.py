@@ -106,7 +106,7 @@ def testsParity(frameLen, swapProb, testCount):
 
 	print(' # detected as incorrect factor(detected/send): '+ str(detectedMistakes) + ' (' + str(100*detectedMistakes/testCount) + '%)')		
 
-def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunction): 
+def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunction, simpleOutput = False): 
 
 	############
 	# Statistics
@@ -149,7 +149,7 @@ def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunct
 		
 		# detect if frame has been correctly send
 		# if last frame status != 0 then ask for repeate
-		[lastFrameStatus, lastFrameCounter] = s.receiveFrame(mixedFrame, s.checkParity)
+		[lastFrameStatus, lastFrameCounter] = s.receiveFrame(mixedFrame, decoderFunction)
 
 		# check if detection algorythm do its job
 		# error detected
@@ -165,72 +165,111 @@ def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunct
 		stdout.write("\r%d: progress: %d/%d (%d %%) miss/err: %d/%d correctMsg: %d" % (index, dataIndex,
 		 framesCount, dataIndex*100/framesCount, missedErrors, errors, fullyCorrectedMessages))
 
-	print '\n'
-	print '---------------SUMMARY---------------'
-	print ' # target(frames with data):          ', framesCount, 'frames', framesCount *(frameLen), 'bytes (data)'
-	print ' # send:                              ', index, 'frames', index *(frameLen+carryover), 'bytes (data+carryover)'
-	print ' # repeted:                           ', index - framesCount, 'frames', (index - framesCount)*(frameLen+carryover), 'bytes'  
-	print ' #'
-	print ' # correct received message:          ', fullyCorrectedMessages, 'frames', fullyCorrectedMessages*frameLen, 'bytes'
-	print ' # lost messages (matched as correct):', framesCount - fullyCorrectedMessages,'frames', (framesCount - fullyCorrectedMessages)*frameLen, 'bytes' 
-	print ' #'
-	print ' # carryover:                         ', index, 'bytes.', (index - framesCount)*(frameLen+carryover), 'bytes of repeted frames' 
-	print ' #'
-	print ' # errors (frames):                   ', errors
-	print ' # missed errors (frames):            ', missedErrors
-	print ' # detected errors (frames):          ', errors - missedErrors
+	carryoverTargetPlusRepeted = (index - framesCount)*(frameLen+carryover) + framesCount *(carryover)	
 
+	if simpleOutput == False:
+
+
+		print '\n'
+		print '---------------SUMMARY---------------'
+		print ' # target(frames with data):          ', framesCount, 'frames', framesCount *(frameLen), 'bytes (data)'
+		print ' # target(carryover):                 ', framesCount *(carryover), 'bytes', (carryover)*100/(frameLen+carryover), '% (carryover)/(data+carryover)'
+		print ' # send:                              ', index, 'frames', index *(frameLen+carryover), 'bytes (data+carryover)'
+		print ' # send(repeted):                     ', index - framesCount, 'frames', (index - framesCount)*(frameLen+carryover), 'bytes'  
+		print ' # send(carryover):                   ', index - framesCount, 'frames', (index - framesCount)*(frameLen+carryover), 'bytes'  
+		print ' #'
+		print ' # correct received message:          ', fullyCorrectedMessages, 'frames', fullyCorrectedMessages*frameLen, 'bytes'
+		print ' # lost messages (matched as correct):', framesCount - fullyCorrectedMessages,'frames', (framesCount - fullyCorrectedMessages)*frameLen, 'bytes' 
+		print ' #'
+		print ' # carryover:                         ', index - framesCount, 'frames', (index - framesCount)*(frameLen+carryover), 'bytes of repeted frames' 
+		print ' # carryover(target + repeted)        ', carryoverTargetPlusRepeted, 'bytes,', carryoverTargetPlusRepeted*100 / (framesCount *(frameLen)+carryoverTargetPlusRepeted), '%'
+		print ' # errors (frames):                   ', errors
+		print ' # missed errors (frames):            ', missedErrors
+		print ' # detected errors (frames):          ', errors - missedErrors
+
+	else:
+		print '\n'
+		print '---------------SUMMARY---------------'
+		print 'alpha: ', 100 - carryoverTargetPlusRepeted*100 / (framesCount *(frameLen)+carryoverTargetPlusRepeted)
+		print 'frame len: ', frameLen
 
 	#for i in range(10):
 	#	helpers.displayByteArray(sender.sendFrame(sender.parityAdder))
 
-def parityTest():
+def parityTest(frameLen, swapProb, framesCount, simpleOutput):
 	#params
 	#############
-	frameLen = 1 #bytes
-	swapProb = 0.001
-	framesCount = 10000
 	carryover = 1
 	#############
-	
-	test(frameLen, swapProb, framesCount, carryover, socket.Socket.parityAdder, socket.Socket.checkParity)
+
+	print "---------parity---------" 
+	test(frameLen, swapProb, framesCount, carryover, socket.Socket.parityAdder, socket.Socket.checkParity, simpleOutput)
 
 	return
 
 
-def crc16Test():
+def crc16Test(frameLen, swapProb, framesCount, simpleOutput):
 	#params
 	#############
-	frameLen = 2 #bytes
-	swapProb = 0.001
-	framesCount = 10000
 	carryover = 3
 	#############
 
-	test(frameLen, swapProb, framesCount, carryover, socket.Socket.crc16Adder, socket.Socket.checkCrc16)
+	print "---------crc16---------" 
+	test(frameLen, swapProb, framesCount, carryover, socket.Socket.crc16Adder, socket.Socket.checkCrc16, simpleOutput)
 
 	return
 
-if __name__ == "__main__":
-	#parityTest()
-	crc16Test()
+def crc8Test(frameLen, swapProb, framesCount, simpleOutput):
+	#params
+	#############
+	carryover = 2
+	#############
 
+	print "---------crc8---------" 
+	test(frameLen, swapProb, framesCount, carryover, socket.Socket.crc8Adder, socket.Socket.checkCrc8, simpleOutput)
+
+	return
+
+def createTest(frameLen, swapProb, framesCount, algorythm,simpleOutput):
+	
+	if algorythm == 1:
+		parityTest(frameLen, swapProb, framesCount, simpleOutput)
+	elif algorythm == 8:
+		crc8Test(frameLen, swapProb, framesCount, simpleOutput)
+	elif algorythm == 16: 
+		crc16Test(frameLen, swapProb, framesCount, simpleOutput)
+
+def main():
+	#parityTest()
+
+	# Function generates test.
+	frameLen = 30
+	swapProb = 0.001
+	framesCount = 1000
+	algorythm = 16
+	simpleOutput = True
+	createTest(frameLen, swapProb, framesCount, algorythm, simpleOutput)
+
+	return 
 
 	#array = [0x11, 0x03, 0x0, 0x6B, 0x0, 0x3] #crc 0x7687
 	array = [0x11, 0x03, 0x06, 0xAE, 0x41, 0x56, 0x52, 0x43, 0x40] #crc 49AD 
-	helpers.displayByteArray(algorythms.crc16(array))
-	helpers.displayByteArray(array[0:-2])
+	helpers.displayByteArray(algorythms.crc8(array))
+	helpers.displayByteArray(array[0:-1])
 
 	s = socket.Socket(10, 10)
 
-	frame = s.sendFrame(s.crc16Adder)
-	frame = s.sendFrame(s.crc16Adder)
-	frame = s.sendFrame(s.crc16Adder)	
+	frame = s.sendFrame(s.crc8Adder)
+	frame = s.sendFrame(s.crc8Adder)
 	helpers.displayByteArray(frame)
+	frame = s.sendFrame(s.crc8Adder)	
 	#print algorythms.crc16(frame[0:-2])
 	#frame[0]+=1
 	helpers.displayByteArray(frame)
 	
 	#print algorythms.crc16(frame[0:-2])
 	
-	print s.receiveFrame(frame, s.checkCrc16)
+	print s.receiveFrame(frame, s.checkCrc8)
+
+if __name__ == "__main__":
+	main()

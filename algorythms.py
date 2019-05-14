@@ -17,7 +17,7 @@ def parityCode(array):
 
 def crc16(data):
     '''
-    	CRC-16-ModBus Algorithm
+        CRC-16-ModBus Algorithm
     '''
     crc = 0xFFFF
     for b in data:
@@ -29,3 +29,18 @@ def crc16(data):
                 crc = ((crc >> 1) & 0xFFFF)
 
     return [(crc&0xFF00)>>8 , crc&0xFF]
+
+def crc8(data):
+    '''
+        CRC-8 Algorithm
+    '''
+    crc = 0xFF
+    for b in data:
+        crc ^= (0xFF & b)
+        for _ in range(0, 8):
+            if (crc & 0x01):
+                crc = ((crc >> 1) & 0xFF) ^ 0xB2
+            else:
+                crc = ((crc >> 1) & 0xFF)
+
+    return [crc&0xFF]

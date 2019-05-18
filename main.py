@@ -243,11 +243,11 @@ def main():
 	#parityTest()
 
 	# Function generates test.
-	frameLen = 30
+	frameLen = 30	
 	swapProb = 0.001
 	framesCount = 1000
-	algorythm = 16
-	simpleOutput = True
+	algorythm = 1
+	simpleOutput = False
 	createTest(frameLen, swapProb, framesCount, algorythm, simpleOutput)
 
 	return 

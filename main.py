@@ -114,6 +114,7 @@ def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunct
 	index = 0 # how many frames has been send
 	dataIndex = 0 # how many frames of data (no repetes) has been send
 	errors = 0 # how many broken frames has been received 
+	errorsBits = 0 # how many broken bits has been received 
 	missedErrors = 0 # how many bed frames has been marked as correct
 	fullyCorrectedMessages = 0
 
@@ -153,8 +154,10 @@ def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunct
 
 		# check if detection algorythm do its job
 		# error detected
-		if helpers.arrayDiff(frame, mixedFrame):
-			errors+=1
+		missedBits = helpers.arrayDiff(frame, mixedFrame) 
+		if missedBits:
+			errorsBits+=missedBits
+			errors += 1
 
 			# if error missed
 			if lastFrameStatus == True:
@@ -184,6 +187,7 @@ def test(frameLen, swapProb, framesCount, carryover, coderFunction, decoderFunct
 		print ' # carryover:                         ', index - framesCount, 'frames', (index - framesCount)*(frameLen+carryover), 'bytes of repeted frames' 
 		print ' # carryover(target + repeted)        ', carryoverTargetPlusRepeted, 'bytes,', carryoverTargetPlusRepeted*100 / (framesCount *(frameLen)+carryoverTargetPlusRepeted), '%'
 		print ' # errors (frames):                   ', errors
+		print ' # errors (bits):                     ', errorsBits
 		print ' # missed errors (frames):            ', missedErrors
 		print ' # detected errors (frames):          ', errors - missedErrors
 
